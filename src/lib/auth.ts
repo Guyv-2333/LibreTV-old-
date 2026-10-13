@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 /**
  * 会话鉴权：httpOnly cookie + HMAC 签名。
@@ -12,8 +13,19 @@ import crypto from 'node:crypto';
 export const SESSION_COOKIE = 'ltv_session';
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 天
 
+function getRuntimeEnv(name: string): string {
+  try {
+    const env = getCloudflareContext().env as unknown as Record<string, unknown>;
+    const value = env[name];
+    if (typeof value === 'string') return value;
+  } catch {
+    // 本地 Node.js 测试或构建环境可能没有 Cloudflare 上下文。
+  }
+  return process.env[name] || '';
+}
+
 export function getPassword(): string {
-  return process.env.PASSWORD || '';
+  return getRuntimeEnv('PASSWORD');
 }
 
 export function isPasswordConfigured(): boolean {
@@ -21,7 +33,8 @@ export function isPasswordConfigured(): boolean {
 }
 
 function getSecret(): string {
-  if (process.env.PROXY_SECRET) return process.env.PROXY_SECRET;
+  const proxySecret = getRuntimeEnv('PROXY_SECRET');
+  if (proxySecret) return proxySecret;
   return crypto.createHash('sha256').update(getPassword() + ':libretv::session-salt').digest('hex');
 }
 
